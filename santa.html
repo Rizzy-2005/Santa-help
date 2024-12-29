@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Santa's Letter Translator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+        }
+        .container {
+            padding: 20px;
+        }
+        h1 {
+            color: #f44336;
+        }
+        form {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        label, textarea, input, select, button {
+            display: block;
+            width: 100%;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        textarea {
+            height: 100px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #micButton {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #28a745;
+            border: none;
+            color: white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+        }
+        #micButton.active {
+            background-color: #dc3545;
+        }
+        #micIcon {
+            font-size: 20px;
+        }
+        #responseArea {
+            margin-top: 20px;
+        }
+        .responseBox {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: left;
+        }
+        .responseBox p {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="google_translate_element" style="margin-bottom: 20px;"></div>
+
+    <div class="container">
+        <h1>Santa's Letter Translator</h1>
+        <form id="letterForm">
+            <label for="name">Your Name:</label>
+            <input type="text" id="name" placeholder="Enter your name" required>
+
+            <label for="age">Your Age:</label>
+            <input type="number" id="age" placeholder="Enter your age" required>
+
+            <label for="language">Choose Language:</label>
+            <select id="language" required>
+                <option value="ml">Malayalam</option>
+                <option value="hi">Hindi</option>
+                <option value="ta">Tamil</option>
+                <option value="kn">Kannada</option>
+                <option value="te">Telugu</option>
+                <option value="en">English</option>
+            </select>
+
+            <label for="letter">Speak or Type Your Letter:</label>
+            <textarea id="letter" placeholder="Speak or type your letter here..." required></textarea>
+            <button id="micButton" type="button"><span id="micIcon">🎤</span></button>
+
+            <button type="submit">Send to Santa</button>
+        </form>
+
+        <div id="responseArea" style="display:none;">
+            <h2>Santa's Response</h2>
+            <div class="responseBox">
+                <p><strong>Original Letter:</strong></p>
+                <p id="originalLetter"></p>
+                <p><strong>Translated Letter:</strong></p>
+                <p id="translatedLetter"></p>
+                <p><strong>Santa's Reply:</strong></p>
+                <p id="santaReply"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'en',
+                includedLanguages: 'ml,hi,ta,kn,te,en' 
+            }, 'google_translate_element');
+        }
+
+        const form = document.getElementById("letterForm");
+        const micButton = document.getElementById("micButton");
+        const letterField = document.getElementById("letter");
+        const responseArea = document.getElementById("responseArea");
+        const originalLetterElement = document.getElementById("originalLetter");
+        const translatedLetterElement = document.getElementById("translatedLetter");
+        const santaReplyElement = document.getElementById("santaReply");
+        const languageSelect = document.getElementById("language");
+
+        let recognition;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            micButton.addEventListener("click", () => {
+                const language = languageSelect.value;
+                recognition.lang = language;
+                if (micButton.classList.contains("active")) {
+                    recognition.stop();
+                } else {
+                    recognition.start();
+                }
+            });
+
+            recognition.onstart = () => {
+                micButton.classList.add("active");
+                micButton.title = "Listening...";
+            };
+
+            recognition.onend = () => {
+                micButton.classList.remove("active");
+                micButton.title = "Click to start listening";
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                letterField.value += transcript;
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error:", event.error);
+            };
+        } else {
+            micButton.style.display = "none";
+            alert("Speech Recognition not supported in your browser. Please type your letter.");
+        }
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const name = document.getElementById("name").value;
+            const age = document.getElementById("age").value;
+            const letter = document.getElementById("letter").value;
+            const language = document.getElementById("language").value;
+
+            try {
+                const response = await fetch('http://127.0.0.1:5000/generate_reply', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, age, letter, language })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                originalLetterElement.innerText = data.original_letter;
+                translatedLetterElement.innerText = data.translated_letter;
+                santaReplyElement.innerText = data.santa_reply;
+
+                responseArea.style.display = "block";
+            } catch (error) {
+                console.error("Error:", error);
+                alert("An error occurred while sending your letter. Please try again later.");
+            }
+        });
+    </script>
+
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+</body>
+</html>
